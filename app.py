@@ -103,40 +103,26 @@ def create_subscription_image(logo_url, size=(1280, 720), font_size=60):
 
 # --- Función para obtener un clip de video aleatorio de los archivos subidos ---
 def get_random_video_clip(uploaded_files):
-    logging.getLogger("moviepy").setLevel(logging.DEBUG)  # Habilitar el registro de moviepy
+    logging.getLogger("moviepy").setLevel(logging.DEBUG)
     if not uploaded_files:
         return None
 
-    # Seleccionar un archivo aleatorio de la lista
     random_file = np.random.choice(uploaded_files)
     logging.info(f"Nombre del archivo subido: {random_file.name}")
     logging.info(f"Tipo del archivo subido: {random_file.type}")
 
-    # Leer los datos del archivo subido en memoria
-    file_data = random_file.read()
+    # Leer el archivo en un objeto BytesIO
+    video_bytes = BytesIO(random_file.read())
 
-    # Crear un archivo temporal en el sistema de archivos
-    temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=os.path.splitext(random_file.name)[1].lower())
+    # Verificar el tamaño del objeto BytesIO
+    logging.info(f"Tamaño del objeto BytesIO: {video_bytes.getbuffer().nbytes} bytes")
 
-    # Usar shutil.copyfileobj() para copiar los datos al archivo temporal
-    with open(temp_file.name, "wb") as destination:
-        destination.write(file_data)  # Escribir los datos desde la memoria
-
-    # Verificar el archivo temporal
-    logging.info(f"Ruta del archivo temporal: {temp_file.name}")
     try:
-        with open(temp_file.name, "rb") as f:
-            logging.info("Archivo temporal abierto correctamente.")
-            # Intenta leer algunos bytes para verificar que no esté vacío
-            data = f.read(1024)
-            logging.info(f"Primeros 1024 bytes leídos: {len(data)} bytes")
+        # Forzar a moviepy a escribir su propio archivo temporal
+        return VideoFileClip(video_bytes, target_resolution=(360, 640), write_logfile=True, temp_audiofile="temp-audio.m4a")
     except Exception as e:
-        logging.error(f"Error al abrir el archivo temporal: {e}")
-
-    # Devolver un objeto VideoFileClip del archivo temporal
-    file_size = os.path.getsize(temp_file.name)
-    logging.info(f"Tamaño del archivo temporal: {file_size} bytes")
-    return VideoFileClip(temp_file.name)
+        logging.error(f"Error al crear VideoFileClip: {e}")
+        return None
 # -----------------------------------------------------------------------------
 
 # Función de creación de video
