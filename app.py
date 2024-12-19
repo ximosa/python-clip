@@ -11,6 +11,7 @@ import tempfile
 import requests
 from io import BytesIO
 import random
+from moviepy.video.fx.all import resize
 
 logging.basicConfig(level=logging.INFO)
 
@@ -40,7 +41,7 @@ VOCES_DISPONIBLES = {
 
 # Función de creación de texto
 def create_text_image(text, size=(1280, 360), font_size=30, line_height=40):
-    img = Image.new('RGB', size, 'black')
+    img = Image.new('RGBA', size, (0,0,0,0))
     draw = ImageDraw.Draw(img)
     font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", font_size)
 
@@ -172,7 +173,7 @@ def create_simple_video(texto, nombre_salida, voz, logo_url, video_clips):
             duracion = audio_clip.duration
             
             text_img = create_text_image(segmento)
-            txt_clip = (ImageClip(text_img)
+            txt_clip = (ImageClip(text_img,ismask=True)
                       .set_start(tiempo_acumulado)
                       .set_duration(duracion)
                       .set_position('center'))
@@ -181,25 +182,35 @@ def create_simple_video(texto, nombre_salida, voz, logo_url, video_clips):
             if video_clips:
                 video_clip_path = random.choice(video_clips)
                 try:
-                   video_clip = VideoFileClip(video_clip_path).set_start(tiempo_acumulado).set_duration(duracion)
+                   video_clip = VideoFileClip(video_clip_path)
                    
                    # Ajusta el tamaño del clip de fondo
                    video_clip = video_clip.resize(height=720)
                    
-                   # Centrar el clip de fondo
-                   video_clip = video_clip.set_pos("center")
+                   # Recorta el clip para que tenga la duración del audio
+                   video_clip = video_clip.subclip(0, duracion).set_start(tiempo_acumulado)
                    
                    # Compone el clip de texto sobre el clip de video
                    video_segment = video_clip.set_audio(audio_clip.set_start(tiempo_acumulado))
-                   video_segment = video_segment.set_mask(txt_clip.set_opacity(0.8))
-                   
+                   video_segment = video_segment.set_mask(txt_clip)
                    clips_finales.append(video_segment)
+                   
                 except Exception as e:
                   logging.error(f"Error al procesar el clip de video {video_clip_path}: {str(e)}")
-                  video_segment = txt_clip.set_audio(audio_clip.set_start(tiempo_acumulado))
+                  video_segment = (ImageClip(np.zeros((720,1280,3),dtype=np.uint8))
+                        .set_start(tiempo_acumulado)
+                        .set_duration(duracion)
+                        .set_position('center'))
+                  video_segment = video_segment.set_audio(audio_clip.set_start(tiempo_acumulado))
+                  video_segment = video_segment.set_mask(txt_clip)
                   clips_finales.append(video_segment)
             else:
-                 video_segment = txt_clip.set_audio(audio_clip.set_start(tiempo_acumulado))
+                 video_segment = (ImageClip(np.zeros((720,1280,3),dtype=np.uint8))
+                        .set_start(tiempo_acumulado)
+                        .set_duration(duracion)
+                        .set_position('center'))
+                 video_segment = video_segment.set_audio(audio_clip.set_start(tiempo_acumulado))
+                 video_segment = video_segment.set_mask(txt_clip)
                  clips_finales.append(video_segment)
 
             
