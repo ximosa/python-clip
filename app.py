@@ -7,10 +7,8 @@ from google.cloud import texttospeech
 from moviepy.editor import AudioFileClip, ImageClip, concatenate_videoclips, VideoFileClip
 from PIL import Image, ImageDraw, ImageFont
 import numpy as np
-import tempfile
 import requests
 from io import BytesIO
-import shutil
 
 logging.basicConfig(level=logging.INFO)
 
@@ -103,25 +101,26 @@ def create_subscription_image(logo_url, size=(1280, 720), font_size=60):
 
 # --- Función para obtener un clip de video aleatorio de los archivos subidos ---
 def get_random_video_clip(uploaded_files):
-    logging.getLogger("moviepy").setLevel(logging.DEBUG)
     if not uploaded_files:
+        logging.error("No se han subido clips de video")
         return None
 
     random_file = np.random.choice(uploaded_files)
     logging.info(f"Nombre del archivo subido: {random_file.name}")
     logging.info(f"Tipo del archivo subido: {random_file.type}")
 
-    # Leer el archivo en un objeto BytesIO
-    video_bytes = BytesIO(random_file.read())
-
-    # Verificar el tamaño del objeto BytesIO
-    logging.info(f"Tamaño del objeto BytesIO: {video_bytes.getbuffer().nbytes} bytes")
-
     try:
-        # Forzar a moviepy a escribir su propio archivo temporal
-        return VideoFileClip(video_bytes, target_resolution=(360, 640), write_logfile=True, temp_audiofile="temp-audio.m4a")
+        # Leer el archivo en un objeto BytesIO
+        video_bytes = BytesIO(random_file.read())
+        logging.info(f"Tamaño del objeto BytesIO: {video_bytes.getbuffer().nbytes} bytes")
+
+        # Intentar crear el VideoFileClip desde el objeto BytesIO
+        clip = VideoFileClip(video_bytes)
+        logging.info(f"Duración del clip: {clip.duration} segundos")
+        return clip.set_fps(24) # Establecer los fps a 24
+
     except Exception as e:
-        logging.error(f"Error al crear VideoFileClip: {e}")
+        logging.error(f"Error al crear VideoFileClip desde BytesIO: {e}")
         return None
 # -----------------------------------------------------------------------------
 
@@ -196,8 +195,10 @@ def create_simple_video(texto, nombre_salida, voz, logo_url, uploaded_files):
             # --- Superponer texto en clip de video ---
             video_clip = get_random_video_clip(uploaded_files)
             if video_clip is None:
-                raise Exception("No se han subido clips de video")
-            video_clip = video_clip.subclip(0, duracion)  # Ajustar duración del video a la del audio
+                raise Exception("No se han subido clips de video o no se pudieron procesar")
+
+            # Asegurar que la duración del video sea la misma que la del audio
+            video_clip = video_clip.subclip(0, duracion)
 
             text_img = create_text_image(segmento)
             txt_clip = (ImageClip(text_img)
@@ -283,7 +284,20 @@ def main():
 
     # --- Carga de clips de video ---
     st.sidebar.title("Clips de Fondo")
+
+    # Inicializar la lista de archivos subidos en st.session_state
+    if "uploaded_files" not in st.session_state:
+        st.session_state.uploaded_files = []
+
     uploaded_files = st.sidebar.file_uploader("Sube tus clips de video", type=["mp4"], accept_multiple_files=True)
+
+    # Actualizar st.session_state.uploaded_files si se suben nuevos archivos
+    if uploaded_files:
+        st.session_state.uploaded_files = uploaded_files
+
+    # Mostrar los archivos subidos actualmente
+    st.sidebar.write("Archivos subidos actualmente:")
+    st.sidebar.write(st.session_state.uploaded_files)
     # ---------------------------------
 
     uploaded_file = st.file_uploader("Carga un archivo de texto", type="txt")
@@ -295,18 +309,22 @@ def main():
         nombre_salida = st.text_input("Nombre del Video (sin extensión)", "video_generado")
 
         if st.button("Generar Video"):
-            with st.spinner('Generando video...'):
-                nombre_salida_completo = f"{nombre_salida}.mp4"
-                success, message = create_simple_video(texto, nombre_salida_completo, voz_seleccionada, logo_url, uploaded_files)
-                if success:
-                    st.success(message)
-                    st.video(nombre_salida_completo)
-                    with open(nombre_salida_completo, 'rb') as file:
-                        st.download_button(label="Descargar video", data=file, file_name=nombre_salida_completo)
+            
+            if not st.session_state.uploaded_files:
+                st.error("Error: No se han subido clips de video.")
+            else:
+                with st.spinner('Generando video...'):
+                    nombre_salida_completo = f"{nombre_salida}.mp4"
+                    success, message = create_simple_video(texto, nombre_salida_completo, voz_seleccionada, logo_url, st.session_state.uploaded_files)
+                    if success:
+                        st.success(message)
+                        st.video(nombre_salida_completo)
+                        with open(nombre_salida_completo, 'rb') as file:
+                            st.download_button(label="Descargar video", data=file, file_name=nombre_salida_completo)
 
-                    st.session_state.video_path = nombre_salida_completo
-                else:
-                    st.error(f"Error al generar video: {message}")
+                        st.session_state.video_path = nombre_salida_completo
+                    else:
+                        st.error(f"Error al generar video: {message}")
 
         if st.session_state.get("video_path"):
             st.markdown(f'<a href="https://www.youtube.com/upload" target="_blank">Subir video a YouTube</a>', unsafe_allow_html=True)
