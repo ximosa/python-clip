@@ -9,7 +9,7 @@ from PIL import Image, ImageDraw, ImageFont
 import numpy as np
 import tempfile
 import requests
-from io import BytesIO, BufferedRandom
+from io import BytesIO
 
 logging.basicConfig(level=logging.INFO)
 
@@ -102,20 +102,25 @@ def create_subscription_image(logo_url, size=(1280, 720), font_size=60):
 
 # --- Función para obtener un clip de video aleatorio de los archivos subidos ---
 def get_random_video_clip(uploaded_files):
+    logging.getLogger("moviepy").setLevel(logging.DEBUG)  # Habilitar el registro de moviepy
     if not uploaded_files:
         return None
-    
+
     # Seleccionar un archivo aleatorio de la lista
     random_file = np.random.choice(uploaded_files)
-    
+    logging.info(f"Nombre del archivo subido: {random_file.name}")
+    logging.info(f"Tipo del archivo subido: {random_file.type}")
+
     # Crear un archivo temporal en el sistema de archivos
-    temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=os.path.splitext(random_file.name)[1])
-    
+    temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=os.path.splitext(random_file.name)[1].lower()) # Convertir extensión a minúsculas
+
     # Escribir el contenido del archivo subido en el archivo temporal
     with open(temp_file.name, "wb") as f:
         f.write(random_file.read())
 
     # Devolver un objeto VideoFileClip del archivo temporal
+    file_size = os.path.getsize(temp_file.name)
+    logging.info(f"Tamaño del archivo temporal: {file_size} bytes")
     return VideoFileClip(temp_file.name)
 # -----------------------------------------------------------------------------
 
