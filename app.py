@@ -134,8 +134,9 @@ def create_simple_video(texto, nombre_salida, voz, logo_url, background_video_fi
         
         #Crear los clips de video de fondo
         for file in temp_background_files:
-           background_clips.append(VideoFileClip(file))
-        
+           background_clips.append(VideoFileClip(file).resize(height=720).set_position("center")) # Redimensionar aquí
+
+
         for i, segmento in enumerate(segmentos_texto):
             logging.info(f"Procesando segmento {i+1} de {len(segmentos_texto)}")
 
@@ -203,22 +204,17 @@ def create_simple_video(texto, nombre_salida, voz, logo_url, background_video_fi
         # Calcular la duración total del video final
         total_duration = tiempo_acumulado + duracion_subscribe
 
-        # Ajustar la duración y el tamaño de los clips de video de fondo
-        final_background_clips = []
-        for clip in background_clips:
-          clip = clip.resize(height=720).set_position("center")
-          num_loops = int(total_duration // clip.duration) + 1
-          background_clips_looped = [clip] * num_loops
-          clip_looped = concatenate_videoclips(background_clips_looped)
-          clip_looped = clip_looped.subclip(0,total_duration)
-          final_background_clips.append(clip_looped)
-
-        #Concatenar todos los clips de video de fondo
-        if final_background_clips:
-            background_clip = concatenate_videoclips(final_background_clips)
+        # Concatenar todos los clips de video de fondo y hacer el bucle
+        if background_clips:
+            background_clip = concatenate_videoclips(background_clips)
+            num_loops = int(total_duration // background_clip.duration) + 1
+            background_clips_looped = [background_clip] * num_loops
+            background_clip = concatenate_videoclips(background_clips_looped)
+            background_clip = background_clip.subclip(0, total_duration)
+            
         else:
-            background_clip = ImageClip(np.zeros((720,1280,3),dtype=np.uint8)) # Crea un fondo negro en caso de que no se suban videos
-            background_clip = background_clip.set_duration(total_duration)
+            background_clip = ImageClip(np.zeros((720,1280,3),dtype=np.uint8)).set_duration(total_duration)
+
 
         # Combinar clips con el video de fondo
         video_final = concatenate_videoclips(clips_finales, method="compose")
