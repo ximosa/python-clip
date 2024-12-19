@@ -70,7 +70,7 @@ def create_text_image(text, size=(1280, 360), font_size=30, line_height=40):
     return np.array(img)
 
 # Nueva función para crear la imagen de suscripción
-def create_subscription_image(logo_url,size=(1280, 720), font_size=60):
+def create_subscription_image(logo_url, size=(1280, 720), font_size=60):
     img = Image.new('RGB', size, (255, 0, 0))  # Fondo rojo
     draw = ImageDraw.Draw(img)
     font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", font_size)
