@@ -3,5 +3,6 @@ google-cloud-texttospeech
 moviepy==1.0.3
 Pillow
 numpy
+psutil
 requests
 imageio-ffmpeg==0.4.9
