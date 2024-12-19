@@ -185,13 +185,15 @@ def create_simple_video(texto, nombre_salida, voz, logo_url, video_clips):
                    video_clip = video_clip.resize(height=720)
                    
                    # Recorta el clip para que tenga la duración del audio
-                   video_clip = video_clip.subclip(0, duracion).set_start(tiempo_acumulado)
+                   video_clip = video_clip.subclip(0, duracion)
+                   
                    
                    # Compone el clip de texto sobre el clip de video
-                   video_segment = video_clip.set_audio(audio_clip.set_start(tiempo_acumulado))
+                   video_segment = video_clip.set_audio(audio_clip)
                    
                    # Aplica la máscara del texto al clip de video
-                   video_segment = video_segment.set_mask(txt_clip.set_opacity(1))
+                   video_segment = video_segment.set_mask(txt_clip.set_opacity(1)).set_start(tiempo_acumulado)
+                   
                    clips_finales.append(video_segment)
                    
                 except Exception as e:
