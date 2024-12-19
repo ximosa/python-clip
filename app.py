@@ -112,12 +112,15 @@ def get_random_video_clip(uploaded_files):
     logging.info(f"Nombre del archivo subido: {random_file.name}")
     logging.info(f"Tipo del archivo subido: {random_file.type}")
 
+    # Leer los datos del archivo subido en memoria
+    file_data = random_file.read()
+
     # Crear un archivo temporal en el sistema de archivos
     temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=os.path.splitext(random_file.name)[1].lower())
 
     # Usar shutil.copyfileobj() para copiar los datos al archivo temporal
-    with random_file as source, open(temp_file.name, "wb") as destination:
-        shutil.copyfileobj(source, destination)
+    with open(temp_file.name, "wb") as destination:
+        destination.write(file_data)  # Escribir los datos desde la memoria
 
     # Verificar el archivo temporal
     logging.info(f"Ruta del archivo temporal: {temp_file.name}")
