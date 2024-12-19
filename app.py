@@ -4,7 +4,7 @@ import json
 import logging
 import time
 from google.cloud import texttospeech
-from moviepy.editor import AudioFileClip, ImageClip, concatenate_videoclips, VideoFileClip, CompositeVideoClip
+from moviepy.editor import AudioFileClip, ImageClip, concatenate_videoclips, VideoFileClip, CompositeVideoClip, vfx
 from PIL import Image, ImageDraw, ImageFont
 import numpy as np
 import tempfile
@@ -196,11 +196,22 @@ def create_simple_video(texto, nombre_salida, voz, logo_url, background_video_fi
 
         clips_finales.append(subscribe_clip)
 
-        # Combinar clips con el video de fondo
-        for clip in clips_finales:
-            clip = CompositeVideoClip([background_clip.subclip(0, tiempo_acumulado + duracion_subscribe), clip])
+        # Calcular la duración total del video final
+        total_duration = tiempo_acumulado + duracion_subscribe
 
+        # Ajustar el tamaño del video de fondo
+        background_clip = background_clip.resize(height=720).set_position("center")
+        
+        # Ajustar la duración del video de fondo
+        if background_clip.duration < total_duration:
+            background_clip = background_clip.fx(vfx.loop, duration = total_duration)
+        else:
+            background_clip = background_clip.subclip(0, total_duration)
+
+        # Combinar clips con el video de fondo
         video_final = concatenate_videoclips(clips_finales, method="compose")
+        video_final = CompositeVideoClip([background_clip,video_final])
+
         video_final.write_videofile(
             nombre_salida,
             fps=24,
@@ -216,12 +227,12 @@ def create_simple_video(texto, nombre_salida, voz, logo_url, background_video_fi
             clip.close()
 
         for temp_file in archivos_temp:
-             try:
+            try:
                 if os.path.exists(temp_file):
                     os.close(os.open(temp_file, os.O_RDONLY))
                     os.remove(temp_file)
-             except:
-                 pass
+            except:
+                pass
 
         if temp_background_file:
             os.remove(temp_background_file)
