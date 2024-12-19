@@ -79,7 +79,7 @@ def create_subscription_image(logo_url,size=(1280, 720), font_size=60):
         response = requests.get(logo_url)
         response.raise_for_status()
         logo_img = Image.open(BytesIO(response.content)).convert("RGBA")
-        logo_img = logo_img.resize((100,100))
+        logo_img = logo_img.resize((100,100),resample=Image.Resampling.LANCZOS)
         logo_position = (20,20)
         img.paste(logo_img,logo_position,logo_img)
     except Exception as e:
@@ -101,7 +101,7 @@ def create_subscription_image(logo_url,size=(1280, 720), font_size=60):
     return np.array(img)
 
 # Función de creación de video
-def create_simple_video(texto, nombre_salida, voz, logo_url, video_fondo):
+def create_simple_video(texto, nombre_salida, voz, logo_url, videos_fondo):
     archivos_temp = []
     clips_audio = []
     clips_finales = []
@@ -124,14 +124,16 @@ def create_simple_video(texto, nombre_salida, voz, logo_url, video_fondo):
             segmento_actual = frase
         segmentos_texto.append(segmento_actual.strip())
         
-        # Cargar el clip de video de fondo
-        if video_fondo:
-          video_fondo_clip = VideoFileClip(video_fondo)
-          video_fondo_duracion = video_fondo_clip.duration
-        else:
-          video_fondo_clip = None
-          video_fondo_duracion = 0
+        # Cargar los clips de video de fondo
+        video_fondo_clips = []
+        video_fondo_duraciones = []
+        if videos_fondo:
+            for video_file in videos_fondo:
+                video_clip = VideoFileClip(video_file)
+                video_fondo_clips.append(video_clip)
+                video_fondo_duraciones.append(video_clip.duration)
         
+        video_clip_index = 0
         for i, segmento in enumerate(segmentos_texto):
             logging.info(f"Procesando segmento {i+1} de {len(segmentos_texto)}")
             
@@ -182,7 +184,10 @@ def create_simple_video(texto, nombre_salida, voz, logo_url, video_fondo):
                       .set_duration(duracion)
                       .set_position('center'))
             
-            if video_fondo_clip:
+            if video_fondo_clips:
+                # Seleccionar el clip de video actual
+                video_fondo_clip = video_fondo_clips[video_clip_index % len(video_fondo_clips)]
+                video_fondo_duracion = video_fondo_duraciones[video_clip_index % len(video_fondo_clips)]
                 # Ajustar el tamaño del video de fondo al tamaño del video resultante
                 resized_video_clip = video_fondo_clip.resize(text_img.shape[1]/video_fondo_clip.w)
                 video_clip_con_audio = resized_video_clip.subclip(tiempo_acumulado, min(tiempo_acumulado + duracion, video_fondo_duracion))
@@ -193,6 +198,7 @@ def create_simple_video(texto, nombre_salida, voz, logo_url, video_fondo):
                 video_segment =  (video_clip_con_audio.set_audio(audio_clip.set_start(tiempo_acumulado))
                                 .set_mask(txt_clip.set_opacity(0.8))
                                 )
+                video_clip_index+=1
             else:
                 video_segment = txt_clip.set_audio(audio_clip.set_start(tiempo_acumulado))
             clips_finales.append(video_segment)
@@ -204,13 +210,14 @@ def create_simple_video(texto, nombre_salida, voz, logo_url, video_fondo):
         subscribe_img = create_subscription_image(logo_url) # Usamos la función creada
         duracion_subscribe = 5
         
-        if video_fondo_clip:
+        if video_fondo_clips:
+            video_fondo_clip = video_fondo_clips[video_clip_index % len(video_fondo_clips)]
+            video_fondo_duracion = video_fondo_duraciones[video_clip_index % len(video_fondo_clips)]
             resized_video_clip = video_fondo_clip.resize(subscribe_img.shape[1]/video_fondo_clip.w)
             subscribe_video_clip = resized_video_clip.subclip(tiempo_acumulado,min(tiempo_acumulado + duracion_subscribe, video_fondo_duracion))
             if (subscribe_video_clip.duration < duracion_subscribe):
                 subscribe_video_clip = resized_video_clip.subclip(0, min(duracion_subscribe, video_fondo_duracion))
                 subscribe_video_clip = subscribe_video_clip.set_start(tiempo_acumulado)
-           
             subscribe_clip = (subscribe_video_clip.set_mask(
                          ImageClip(subscribe_img).set_opacity(1).set_duration(duracion_subscribe).set_start(tiempo_acumulado))
                         )
@@ -234,8 +241,8 @@ def create_simple_video(texto, nombre_salida, voz, logo_url, video_fondo):
         )
         
         video_final.close()
-        if video_fondo_clip:
-            video_fondo_clip.close()
+        for video_clip in video_fondo_clips:
+            video_clip.close()
         
         for clip in clips_audio:
             clip.close()
@@ -255,10 +262,9 @@ def create_simple_video(texto, nombre_salida, voz, logo_url, video_fondo):
         
     except Exception as e:
         logging.error(f"Error: {str(e)}")
-        
-        if video_fondo_clip:
+        for video_clip in video_fondo_clips:
             try:
-                video_fondo_clip.close()
+                video_clip.close()
             except:
                 pass
                 
@@ -292,14 +298,13 @@ def main():
     voz_seleccionada = st.selectbox("Selecciona la voz", options=list(VOCES_DISPONIBLES.keys()))
     logo_url = "https://yt3.ggpht.com/pBI3iT87_fX91PGHS5gZtbQi53nuRBIvOsuc-Z-hXaE3GxyRQF8-vEIDYOzFz93dsKUEjoHEwQ=s176-c-k-c0x00ffffff-no-rj"
     
-    if 'video_fondo_path' not in st.session_state:
-        st.session_state.video_fondo_path = None
-
-    video_fondo = st.file_uploader("Carga un video de fondo", type=["mp4", "avi", "mov"])
-    if video_fondo:
-      with tempfile.NamedTemporaryFile(suffix=os.path.splitext(video_fondo.name)[1], delete=False) as temp_file:
-        temp_file.write(video_fondo.read())
-        st.session_state.video_fondo_path = temp_file.name
+    video_fondos = st.file_uploader("Carga uno o varios videos de fondo", type=["mp4", "avi", "mov"], accept_multiple_files=True)
+    video_fondo_paths = []
+    if video_fondos:
+      for video_fondo in video_fondos:
+        with tempfile.NamedTemporaryFile(suffix=os.path.splitext(video_fondo.name)[1], delete=False) as temp_file:
+          temp_file.write(video_fondo.read())
+          video_fondo_paths.append(temp_file.name)
 
     if uploaded_file:
         texto = uploaded_file.read().decode("utf-8")
@@ -308,7 +313,7 @@ def main():
         if st.button("Generar Video"):
             with st.spinner('Generando video...'):
                 nombre_salida_completo = f"{nombre_salida}.mp4"
-                success, message = create_simple_video(texto, nombre_salida_completo, voz_seleccionada, logo_url, st.session_state.video_fondo_path)
+                success, message = create_simple_video(texto, nombre_salida_completo, voz_seleccionada, logo_url, video_fondo_paths)
                 if success:
                   st.success(message)
                   st.video(nombre_salida_completo)
@@ -322,13 +327,14 @@ def main():
         if st.session_state.get("video_path"):
             st.markdown(f'<a href="https://www.youtube.com/upload" target="_blank">Subir video a YouTube</a>', unsafe_allow_html=True)
     
-    if st.session_state.video_fondo_path:
-      try:
-          if os.path.exists(st.session_state.video_fondo_path):
-              os.close(os.open(st.session_state.video_fondo_path, os.O_RDONLY))
-              os.remove(st.session_state.video_fondo_path)
-      except:
-          pass
+    if video_fondo_paths:
+        for video_path in video_fondo_paths:
+          try:
+            if os.path.exists(video_path):
+                os.close(os.open(video_path, os.O_RDONLY))
+                os.remove(video_path)
+          except:
+              pass
 
 if __name__ == "__main__":
     # Inicializar session state
