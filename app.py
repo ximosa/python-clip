@@ -176,8 +176,8 @@ def create_simple_video(texto, nombre_salida, voz, logo_url, background_video_fi
 
             audio_clip = AudioFileClip(temp_filename)
             clips_audio.append(audio_clip)
-            duracion = audio_clip.duration
-
+            duracion = int(audio_clip.duration) # Convertir a entero
+            
             text_img = create_text_image(segmento)
             txt_clip = (ImageClip(text_img)
                         .set_start(tiempo_acumulado)
