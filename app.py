@@ -4,7 +4,7 @@ import json
 import logging
 import time
 from google.cloud import texttospeech
-from moviepy.editor import AudioFileClip, ImageClip, concatenate_videoclips, VideoFileClip
+from moviepy.editor import AudioFileClip, ImageClip, concatenate_videoclips, VideoFileClip, CompositeVideoClip
 from PIL import Image, ImageDraw, ImageFont
 import numpy as np
 import tempfile
@@ -184,9 +184,11 @@ def create_simple_video(texto, nombre_salida, voz, logo_url, video_clips):
                     video_clip = video_clip.subclip(0, duracion)
 
                     # Compone el clip de texto sobre el clip de video
-                    video_segment = video_clip.set_audio(audio_clip)
+                    video_segment = CompositeVideoClip([
+                      video_clip,
+                      txt_clip.set_opacity(1).set_pos('center')
+                  ]).set_audio(audio_clip).set_start(tiempo_acumulado)
 
-                    video_segment = video_segment.set_mask(txt_clip.set_opacity(1)).set_start(tiempo_acumulado)
                     clips_finales.append(video_segment)
 
                 except Exception as e:
