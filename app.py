@@ -135,7 +135,6 @@ def create_simple_video(texto, nombre_salida, voz, logo_url, background_video_fi
         for file in temp_background_files:
             background_clips.append(VideoFileClip(file).resize(height=720).set_position("center")) # Redimensionar aquí
         
-        num_background_videos = len(background_clips)
 
         for i, segmento in enumerate(segmentos_texto):
             logging.info(f"Procesando segmento {i+1} de {len(segmentos_texto)}")
@@ -204,20 +203,15 @@ def create_simple_video(texto, nombre_salida, voz, logo_url, background_video_fi
         # Calcular duración total del video
         total_duration = tiempo_acumulado + duracion_subscribe
         
-         # Crear clip de video de fondo continuo
+        # Crear clip de video de fondo continuo
         if background_clips:
-            background_clips_looped = []
-            current_time = 0
-            while current_time < total_duration:
-                for clip in background_clips:
-                    background_clips_looped.append(clip.set_start(current_time))
-                    current_time += clip.duration
-                    if current_time >= total_duration:
-                       break
+            background_clip = concatenate_videoclips(background_clips, method="compose")
+            num_loops = int(total_duration // background_clip.duration) + 1
+            background_clips_looped = [background_clip] * num_loops
             background_clip = concatenate_videoclips(background_clips_looped, method="compose")
             background_clip = background_clip.subclip(0, total_duration)
         else:
-            background_clip = ImageClip(np.zeros((720,1280,3),dtype=np.uint8)).set_duration(total_duration) # Crea un fondo negro en caso de que no se suban videos
+           background_clip = ImageClip(np.zeros((720,1280,3),dtype=np.uint8)).set_duration(total_duration) # Crea un fondo negro en caso de que no se suban videos
     
 
         # Concatenar clips de texto/audio y superponer sobre el fondo
