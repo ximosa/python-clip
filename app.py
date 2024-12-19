@@ -104,6 +104,7 @@ def create_simple_video(texto, nombre_salida, voz, logo_url, background_video_fi
     archivos_temp = []
     clips_audio = []
     clips_finales = []
+    temp_background_file = None  # Variable para almacenar el nombre del archivo temporal de fondo
 
     try:
         logging.info("Iniciando proceso de creación de video...")
@@ -122,9 +123,14 @@ def create_simple_video(texto, nombre_salida, voz, logo_url, background_video_fi
                 segmentos_texto.append(segmento_actual.strip())
                 segmento_actual = frase
         segmentos_texto.append(segmento_actual.strip())
-
+        
         # Cargar el video de fondo
-        background_clip = VideoFileClip(background_video_file)
+        with tempfile.NamedTemporaryFile(suffix=os.path.splitext(background_video_file.name)[1], delete=False) as tmp_file:
+            tmp_file.write(background_video_file.read())
+            temp_background_file = tmp_file.name
+        
+        background_clip = VideoFileClip(temp_background_file)
+
 
         for i, segmento in enumerate(segmentos_texto):
             logging.info(f"Procesando segmento {i+1} de {len(segmentos_texto)}")
@@ -210,7 +216,16 @@ def create_simple_video(texto, nombre_salida, voz, logo_url, background_video_fi
             clip.close()
 
         for temp_file in archivos_temp:
-            os.remove(temp_file)
+             try:
+                if os.path.exists(temp_file):
+                    os.close(os.open(temp_file, os.O_RDONLY))
+                    os.remove(temp_file)
+             except:
+                 pass
+
+        if temp_background_file:
+            os.remove(temp_background_file)
+
 
         return True, "Video generado exitosamente"
 
@@ -230,9 +245,14 @@ def create_simple_video(texto, nombre_salida, voz, logo_url, background_video_fi
 
         for temp_file in archivos_temp:
             try:
-                os.remove(temp_file)
+                if os.path.exists(temp_file):
+                    os.close(os.open(temp_file, os.O_RDONLY))
+                    os.remove(temp_file)
             except:
                 pass
+            
+        if temp_background_file:
+            os.remove(temp_background_file)
 
         return False, str(e)
 
@@ -250,7 +270,7 @@ def main():
 
         if st.button("Generar Video"):
             with st.spinner('Generando video...'):
-                nombre_salida_completo = f"{nombre_salida}.mp3"
+                nombre_salida_completo = f"{nombre_salida}.mp4"
                 success, message = create_simple_video(texto, nombre_salida_completo, voz_seleccionada, logo_url, background_video_file)
                 if success:
                     st.success(message)
