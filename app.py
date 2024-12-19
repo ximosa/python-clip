@@ -176,7 +176,7 @@ def create_simple_video(texto, nombre_salida, voz, logo_url, background_video_fi
 
             audio_clip = AudioFileClip(temp_filename)
             clips_audio.append(audio_clip)
-            duracion = int(audio_clip.duration)  # Convertir a entero
+            duracion = audio_clip.duration
 
             text_img = create_text_image(segmento)
             txt_clip = (ImageClip(text_img)
@@ -186,21 +186,6 @@ def create_simple_video(texto, nombre_salida, voz, logo_url, background_video_fi
             
             video_segment = txt_clip.set_audio(audio_clip.set_start(tiempo_acumulado))
             clips_finales.append(video_segment)
-            
-            # Selecciona un clip de fondo (cíclicamente)
-            background_index = i % num_background_videos
-            background_clip = background_clips[background_index]
-            
-            # Ajustar la duración del clip de fondo
-            if background_clip.duration < duracion:
-                num_loops = int(duracion // background_clip.duration) + 1
-                background_clips_looped = [background_clip] * num_loops
-                background_clip = concatenate_videoclips(background_clips_looped, method="compose")
-
-            background_clip = background_clip.subclip(0, duracion)
-            background_clip = background_clip.set_start(tiempo_acumulado)
-            
-            clips_finales.append(background_clip) # Añado el clip de fondo a los finales para que se integre en el orden correcto
             
             tiempo_acumulado += duracion
             time.sleep(0.2)
@@ -216,11 +201,23 @@ def create_simple_video(texto, nombre_salida, voz, logo_url, background_video_fi
         
         clips_finales.append(subscribe_clip)
 
-        # Ordenar clips por tiempo de inicio
-        clips_finales.sort(key=lambda clip: clip.start)
-        
-        # Concatenar los clips finales
+        # Calcular duración total del video
+        total_duration = tiempo_acumulado + duracion_subscribe
+
+        # Crear clip de video de fondo continuo
+        if background_clips:
+           background_clip = concatenate_videoclips(background_clips)
+           num_loops = int(total_duration // background_clip.duration) + 1
+           background_clips_looped = [background_clip] * num_loops
+           background_clip = concatenate_videoclips(background_clips_looped)
+           background_clip = background_clip.subclip(0, total_duration)
+        else:
+            background_clip = ImageClip(np.zeros((720,1280,3),dtype=np.uint8)).set_duration(total_duration) # Crea un fondo negro en caso de que no se suban videos
+
+
+        # Concatenar clips de texto/audio y superponer sobre el fondo
         video_final = concatenate_videoclips(clips_finales, method="compose")
+        video_final = CompositeVideoClip([background_clip,video_final])
 
         video_final.write_videofile(
             nombre_salida,
