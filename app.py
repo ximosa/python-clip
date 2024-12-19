@@ -10,6 +10,7 @@ import numpy as np
 import tempfile
 import requests
 from io import BytesIO
+import itertools
 
 logging.basicConfig(level=logging.INFO)
 
@@ -79,7 +80,7 @@ def create_subscription_image(logo_url,size=(1280, 720), font_size=60):
         response = requests.get(logo_url)
         response.raise_for_status()
         logo_img = Image.open(BytesIO(response.content)).convert("RGBA")
-        logo_img = logo_img.resize((100,100),resample=Image.Resampling.LANCZOS)
+        logo_img = logo_img.resize((100,100), resample=Image.Resampling.LANCZOS)
         logo_position = (20,20)
         img.paste(logo_img,logo_position,logo_img)
     except Exception as e:
@@ -105,6 +106,7 @@ def create_simple_video(texto, nombre_salida, voz, logo_url, videos_fondo):
     archivos_temp = []
     clips_audio = []
     clips_finales = []
+    video_fondo_clips = []
     
     try:
         logging.info("Iniciando proceso de creación de video...")
@@ -125,15 +127,13 @@ def create_simple_video(texto, nombre_salida, voz, logo_url, videos_fondo):
         segmentos_texto.append(segmento_actual.strip())
         
         # Cargar los clips de video de fondo
-        video_fondo_clips = []
-        video_fondo_duraciones = []
         if videos_fondo:
             for video_file in videos_fondo:
                 video_clip = VideoFileClip(video_file)
                 video_fondo_clips.append(video_clip)
-                video_fondo_duraciones.append(video_clip.duration)
         
-        video_clip_index = 0
+        video_clip_cycle = itertools.cycle(video_fondo_clips) if video_fondo_clips else None
+        
         for i, segmento in enumerate(segmentos_texto):
             logging.info(f"Procesando segmento {i+1} de {len(segmentos_texto)}")
             
@@ -184,21 +184,20 @@ def create_simple_video(texto, nombre_salida, voz, logo_url, videos_fondo):
                       .set_duration(duracion)
                       .set_position('center'))
             
-            if video_fondo_clips:
+            if video_clip_cycle:
                 # Seleccionar el clip de video actual
-                video_fondo_clip = video_fondo_clips[video_clip_index % len(video_fondo_clips)]
-                video_fondo_duracion = video_fondo_duraciones[video_clip_index % len(video_fondo_clips)]
+                video_fondo_clip = next(video_clip_cycle)
                 # Ajustar el tamaño del video de fondo al tamaño del video resultante
                 resized_video_clip = video_fondo_clip.resize(text_img.shape[1]/video_fondo_clip.w)
-                video_clip_con_audio = resized_video_clip.subclip(tiempo_acumulado, min(tiempo_acumulado + duracion, video_fondo_duracion))
+                video_clip_con_audio = resized_video_clip.subclip(tiempo_acumulado, min(tiempo_acumulado + duracion, video_fondo_clip.duration))
                 if (video_clip_con_audio.duration < duracion):
-                    video_clip_con_audio = resized_video_clip.subclip(0, min(duracion, video_fondo_duracion))
-                    video_clip_con_audio = video_clip_con_audio.set_start(tiempo_acumulado)
+                   video_clip_con_audio = resized_video_clip.subclip(0, min(duracion, video_fondo_clip.duration))
+                   video_clip_con_audio = video_clip_con_audio.set_start(tiempo_acumulado)
+
                 
                 video_segment =  (video_clip_con_audio.set_audio(audio_clip.set_start(tiempo_acumulado))
                                 .set_mask(txt_clip.set_opacity(0.8))
                                 )
-                video_clip_index+=1
             else:
                 video_segment = txt_clip.set_audio(audio_clip.set_start(tiempo_acumulado))
             clips_finales.append(video_segment)
@@ -210,14 +209,13 @@ def create_simple_video(texto, nombre_salida, voz, logo_url, videos_fondo):
         subscribe_img = create_subscription_image(logo_url) # Usamos la función creada
         duracion_subscribe = 5
         
-        if video_fondo_clips:
-            video_fondo_clip = video_fondo_clips[video_clip_index % len(video_fondo_clips)]
-            video_fondo_duracion = video_fondo_duraciones[video_clip_index % len(video_fondo_clips)]
+        if video_clip_cycle:
+            video_fondo_clip = next(video_clip_cycle)
             resized_video_clip = video_fondo_clip.resize(subscribe_img.shape[1]/video_fondo_clip.w)
-            subscribe_video_clip = resized_video_clip.subclip(tiempo_acumulado,min(tiempo_acumulado + duracion_subscribe, video_fondo_duracion))
+            subscribe_video_clip = resized_video_clip.subclip(tiempo_acumulado,min(tiempo_acumulado + duracion_subscribe, video_fondo_clip.duration))
             if (subscribe_video_clip.duration < duracion_subscribe):
-                subscribe_video_clip = resized_video_clip.subclip(0, min(duracion_subscribe, video_fondo_duracion))
-                subscribe_video_clip = subscribe_video_clip.set_start(tiempo_acumulado)
+               subscribe_video_clip = resized_video_clip.subclip(0, min(duracion_subscribe, video_fondo_clip.duration))
+               subscribe_video_clip = subscribe_video_clip.set_start(tiempo_acumulado)
             subscribe_clip = (subscribe_video_clip.set_mask(
                          ImageClip(subscribe_img).set_opacity(1).set_duration(duracion_subscribe).set_start(tiempo_acumulado))
                         )
