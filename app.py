@@ -187,7 +187,7 @@ def create_simple_video(texto, nombre_salida, voz, logo_url, video_clips):
                     video_segment = CompositeVideoClip([
                       video_clip,
                       txt_clip.set_opacity(1).set_pos('center')
-                  ]).set_audio(audio_clip).set_start(tiempo_acumulado)
+                  ], size=video_clip.size).set_audio(audio_clip).set_start(tiempo_acumulado)
 
                     clips_finales.append(video_segment)
 
