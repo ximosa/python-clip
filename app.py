@@ -79,9 +79,9 @@ def create_subscription_image(logo_url, size=(1280, 720), font_size=60):
         response = requests.get(logo_url)
         response.raise_for_status()
         logo_img = Image.open(BytesIO(response.content))
-        logo_img = logo_img.convert("RGBA").resize((100,100), resample=Image.Resampling.LANCZOS)
+        logo_img = logo_img.convert("RGBA").resize((100, 100), resample=Image.Resampling.LANCZOS)
         logo_position = (20,20)
-        img.paste(logo_img,logo_position,logo_img)
+        img.paste(logo_img, logo_position, logo_img)
     except Exception as e:
         logging.error(f"Error al cargar el logo: {str(e)}")
         
@@ -124,7 +124,7 @@ def create_simple_video(texto, nombre_salida, voz, logo_url, videos_fondo):
             segmento_actual = frase
         segmentos_texto.append(segmento_actual.strip())
         
-         # Cargar los clips de video de fondo
+        # Cargar los clips de video de fondo
         video_fondo_clips = []
         if videos_fondo:
             for video_file in videos_fondo:
@@ -185,9 +185,10 @@ def create_simple_video(texto, nombre_salida, voz, logo_url, videos_fondo):
                 # Seleccionar el clip de video actual
                 video_index = i % len(video_fondo_clips)
                 video_fondo_clip = video_fondo_clips[video_index]
-
-                # Ajustar el tamaño del video de fondo al tamaño del video resultante
-                resized_video_clip = video_fondo_clip.resize(text_img.shape[1]/video_fondo_clip.w)
+                
+                # Ajustar el tamaño del video de fondo al tamaño del texto
+                resized_video_clip = video_fondo_clip.resize(width = text_img.shape[1])
+                
                 video_clip_con_audio = resized_video_clip.subclip(tiempo_acumulado, min(tiempo_acumulado + duracion, video_fondo_clip.duration))
                 if (video_clip_con_audio.duration < duracion):
                     video_clip_con_audio = resized_video_clip.subclip(0, min(duracion, video_fondo_clip.duration))
@@ -210,7 +211,8 @@ def create_simple_video(texto, nombre_salida, voz, logo_url, videos_fondo):
         if video_fondo_clips:
              video_index = len(segmentos_texto) % len(video_fondo_clips)
              video_fondo_clip = video_fondo_clips[video_index]
-             resized_video_clip = video_fondo_clip.resize(subscribe_img.shape[1]/video_fondo_clip.w)
+             
+             resized_video_clip = video_fondo_clip.resize(width = subscribe_img.shape[1])
              subscribe_video_clip = resized_video_clip.subclip(tiempo_acumulado,min(tiempo_acumulado + duracion_subscribe, video_fondo_clip.duration))
              if (subscribe_video_clip.duration < duracion_subscribe):
                 subscribe_video_clip = resized_video_clip.subclip(0, min(duracion_subscribe, video_fondo_clip.duration))
