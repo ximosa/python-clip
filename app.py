@@ -10,6 +10,7 @@ import numpy as np
 import tempfile
 import requests
 from io import BytesIO
+import shutil
 
 logging.basicConfig(level=logging.INFO)
 
@@ -112,11 +113,22 @@ def get_random_video_clip(uploaded_files):
     logging.info(f"Tipo del archivo subido: {random_file.type}")
 
     # Crear un archivo temporal en el sistema de archivos
-    temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=os.path.splitext(random_file.name)[1].lower()) # Convertir extensión a minúsculas
+    temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=os.path.splitext(random_file.name)[1].lower())
 
-    # Escribir el contenido del archivo subido en el archivo temporal
-    with open(temp_file.name, "wb") as f:
-        f.write(random_file.read())
+    # Usar shutil.copyfileobj() para copiar los datos al archivo temporal
+    with random_file as source, open(temp_file.name, "wb") as destination:
+        shutil.copyfileobj(source, destination)
+
+    # Verificar el archivo temporal
+    logging.info(f"Ruta del archivo temporal: {temp_file.name}")
+    try:
+        with open(temp_file.name, "rb") as f:
+            logging.info("Archivo temporal abierto correctamente.")
+            # Intenta leer algunos bytes para verificar que no esté vacío
+            data = f.read(1024)
+            logging.info(f"Primeros 1024 bytes leídos: {len(data)} bytes")
+    except Exception as e:
+        logging.error(f"Error al abrir el archivo temporal: {e}")
 
     # Devolver un objeto VideoFileClip del archivo temporal
     file_size = os.path.getsize(temp_file.name)
