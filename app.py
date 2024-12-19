@@ -11,7 +11,6 @@ import tempfile
 import requests
 from io import BytesIO
 import random
-from moviepy.video.fx.all import resize
 
 logging.basicConfig(level=logging.INFO)
 
@@ -41,7 +40,7 @@ VOCES_DISPONIBLES = {
 
 # Función de creación de texto
 def create_text_image(text, size=(1280, 360), font_size=30, line_height=40):
-    img = Image.new('RGBA', size, (0,0,0,0))
+    img = Image.new('RGBA', size, (0, 0, 0, 0))
     draw = ImageDraw.Draw(img)
     font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", font_size)
 
@@ -81,24 +80,24 @@ def create_subscription_image(logo_url,size=(1280, 720), font_size=60):
         response = requests.get(logo_url)
         response.raise_for_status()
         logo_img = Image.open(BytesIO(response.content)).convert("RGBA")
-        logo_img = logo_img.resize((100,100))
-        logo_position = (20,20)
-        img.paste(logo_img,logo_position,logo_img)
+        logo_img = logo_img.resize((100, 100))
+        logo_position = (20, 20)
+        img.paste(logo_img, logo_position, logo_img)
     except Exception as e:
         logging.error(f"Error al cargar el logo: {str(e)}")
-        
+
     text1 = "¡SUSCRÍBETE A LECTOR DE SOMBRAS!"
     left1, top1, right1, bottom1 = draw.textbbox((0, 0), text1, font=font)
     x1 = (size[0] - (right1 - left1)) // 2
     y1 = (size[1] - (bottom1 - top1)) // 2 - (bottom1 - top1) // 2 - 20
     draw.text((x1, y1), text1, font=font, fill="white")
-    
-    font2 = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", font_size//2)
+
+    font2 = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", font_size // 2)
     text2 = "Dale like y activa la campana 🔔"
     left2, top2, right2, bottom2 = draw.textbbox((0, 0), text2, font=font2)
     x2 = (size[0] - (right2 - left2)) // 2
     y2 = (size[1] - (bottom2 - top2)) // 2 + (bottom1 - top1) // 2 + 20
-    draw.text((x2,y2), text2, font=font2, fill="white")
+    draw.text((x2, y2), text2, font=font2, fill="white")
 
     return np.array(img)
 
@@ -125,8 +124,6 @@ def create_simple_video(texto, nombre_salida, voz, logo_url, video_clips):
             segmentos_texto.append(segmento_actual.strip())
             segmento_actual = frase
         segmentos_texto.append(segmento_actual.strip())
-        
-        
         
         for i, segmento in enumerate(segmentos_texto):
             logging.info(f"Procesando segmento {i+1} de {len(segmentos_texto)}")
@@ -173,7 +170,7 @@ def create_simple_video(texto, nombre_salida, voz, logo_url, video_clips):
             duracion = audio_clip.duration
             
             text_img = create_text_image(segmento)
-            txt_clip = (ImageClip(text_img,ismask=True)
+            txt_clip = (ImageClip(text_img)
                       .set_start(tiempo_acumulado)
                       .set_duration(duracion)
                       .set_position('center'))
@@ -192,7 +189,9 @@ def create_simple_video(texto, nombre_salida, voz, logo_url, video_clips):
                    
                    # Compone el clip de texto sobre el clip de video
                    video_segment = video_clip.set_audio(audio_clip.set_start(tiempo_acumulado))
-                   video_segment = video_segment.set_mask(txt_clip)
+                   
+                   # Aplica la máscara del texto al clip de video
+                   video_segment = video_segment.set_mask(txt_clip.set_opacity(1))
                    clips_finales.append(video_segment)
                    
                 except Exception as e:
@@ -200,19 +199,16 @@ def create_simple_video(texto, nombre_salida, voz, logo_url, video_clips):
                   video_segment = (ImageClip(np.zeros((720,1280,3),dtype=np.uint8))
                         .set_start(tiempo_acumulado)
                         .set_duration(duracion)
-                        .set_position('center'))
-                  video_segment = video_segment.set_audio(audio_clip.set_start(tiempo_acumulado))
-                  video_segment = video_segment.set_mask(txt_clip)
+                        .set_position('center')
+                      ).set_audio(audio_clip.set_start(tiempo_acumulado))
                   clips_finales.append(video_segment)
             else:
                  video_segment = (ImageClip(np.zeros((720,1280,3),dtype=np.uint8))
                         .set_start(tiempo_acumulado)
                         .set_duration(duracion)
-                        .set_position('center'))
-                 video_segment = video_segment.set_audio(audio_clip.set_start(tiempo_acumulado))
-                 video_segment = video_segment.set_mask(txt_clip)
+                        .set_position('center')
+                      ).set_audio(audio_clip.set_start(tiempo_acumulado))
                  clips_finales.append(video_segment)
-
             
             tiempo_acumulado += duracion
             time.sleep(0.2)
@@ -281,7 +277,6 @@ def create_simple_video(texto, nombre_salida, voz, logo_url, video_clips):
         
         return False, str(e)
 
-
 def main():
     st.title("Creador de Videos Automático")
     
@@ -294,7 +289,6 @@ def main():
     if video_files:
       video_clips = [video.name for video in video_files]
       
-    
       #Guardamos los archivos en disco para poder usarlos
       temp_dir = tempfile.mkdtemp()
       for video in video_files:
@@ -334,7 +328,6 @@ def main():
                os.rmdir(temp_dir)
              except:
                 pass
-            
 
         if st.session_state.get("video_path"):
             st.markdown(f'<a href="https://www.youtube.com/upload" target="_blank">Subir video a YouTube</a>', unsafe_allow_html=True)
