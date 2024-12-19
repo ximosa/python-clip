@@ -171,7 +171,6 @@ def create_simple_video(texto, nombre_salida, voz, logo_url, video_clips):
             
             text_img = create_text_image(segmento)
             txt_clip = (ImageClip(text_img)
-                      .set_start(tiempo_acumulado)
                       .set_duration(duracion)
                       .set_position('center'))
             
@@ -179,38 +178,34 @@ def create_simple_video(texto, nombre_salida, voz, logo_url, video_clips):
             if video_clips:
                 video_clip_path = random.choice(video_clips)
                 try:
-                   video_clip = VideoFileClip(video_clip_path)
-                   
-                   # Ajusta el tamaño del clip de fondo
-                   video_clip = video_clip.resize(height=720)
-                   
-                   # Recorta el clip para que tenga la duración del audio
-                   video_clip = video_clip.subclip(0, duracion)
-                   
-                   
-                   # Compone el clip de texto sobre el clip de video
-                   video_segment = video_clip.set_audio(audio_clip)
-                   
-                   # Aplica la máscara del texto al clip de video
-                   video_segment = video_segment.set_mask(txt_clip.set_opacity(1)).set_start(tiempo_acumulado)
-                   
-                   clips_finales.append(video_segment)
-                   
+                    video_clip = VideoFileClip(video_clip_path).resize(height=720)
+                    
+                    # Recorta el clip para que tenga la duración del audio
+                    video_clip = video_clip.subclip(0, duracion)
+
+                    # Compone el clip de texto sobre el clip de video
+                    video_segment = video_clip.set_audio(audio_clip)
+
+                    video_segment = video_segment.set_mask(txt_clip.set_opacity(1)).set_start(tiempo_acumulado)
+                    clips_finales.append(video_segment)
+
                 except Exception as e:
                   logging.error(f"Error al procesar el clip de video {video_clip_path}: {str(e)}")
                   video_segment = (ImageClip(np.zeros((720,1280,3),dtype=np.uint8))
-                        .set_start(tiempo_acumulado)
-                        .set_duration(duracion)
-                        .set_position('center')
-                      ).set_audio(audio_clip.set_start(tiempo_acumulado))
+                                  .set_duration(duracion)
+                                  .set_position('center')
+                                  .set_audio(audio_clip)
+                                  .set_start(tiempo_acumulado)
+                                  )
                   clips_finales.append(video_segment)
             else:
-                 video_segment = (ImageClip(np.zeros((720,1280,3),dtype=np.uint8))
-                        .set_start(tiempo_acumulado)
-                        .set_duration(duracion)
-                        .set_position('center')
-                      ).set_audio(audio_clip.set_start(tiempo_acumulado))
-                 clips_finales.append(video_segment)
+              video_segment = (ImageClip(np.zeros((720,1280,3),dtype=np.uint8))
+                              .set_duration(duracion)
+                              .set_position('center')
+                              .set_audio(audio_clip)
+                              .set_start(tiempo_acumulado)
+                              )
+              clips_finales.append(video_segment)
             
             tiempo_acumulado += duracion
             time.sleep(0.2)
@@ -226,7 +221,7 @@ def create_simple_video(texto, nombre_salida, voz, logo_url, video_clips):
 
         clips_finales.append(subscribe_clip)
         
-        video_final = concatenate_videoclips(clips_finales, method="compose", )
+        video_final = concatenate_videoclips(clips_finales, method="compose")
         
         video_final.write_videofile(
             nombre_salida,
@@ -278,6 +273,7 @@ def create_simple_video(texto, nombre_salida, voz, logo_url, video_clips):
                 pass
         
         return False, str(e)
+
 
 def main():
     st.title("Creador de Videos Automático")
