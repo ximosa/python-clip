@@ -133,7 +133,9 @@ def create_simple_video(texto, nombre_salida, voz, logo_url, background_video_fi
 
         #Crear los clips de video de fondo
         for file in temp_background_files:
-            background_clips.append(VideoFileClip(file).resize(height=720).set_position("center")) # Redimensionar aquí
+            clip = VideoFileClip(file).resize(height=720).set_position("center")
+            logging.info(f"Clip de fondo cargado: {file}, duración: {clip.duration} segundos")
+            background_clips.append(clip) # Redimensionar aquí
         
 
         for i, segmento in enumerate(segmentos_texto):
@@ -205,13 +207,21 @@ def create_simple_video(texto, nombre_salida, voz, logo_url, background_video_fi
         
         # Crear clip de video de fondo continuo
         if background_clips:
-            background_clip = concatenate_videoclips(background_clips, method="compose")
-            num_loops = int(total_duration // background_clip.duration) + 1
-            background_clips_looped = [background_clip] * num_loops
+            background_clips_looped = []
+            current_time = 0
+            
+            while current_time < total_duration:
+               for clip in background_clips:
+                  background_clips_looped.append(clip.set_start(current_time))
+                  current_time += clip.duration
+                  if current_time >= total_duration:
+                     break
+            
+            logging.info(f"Clips de fondo antes de la concatenacion: {background_clips_looped}")
             background_clip = concatenate_videoclips(background_clips_looped, method="compose")
             background_clip = background_clip.subclip(0, total_duration)
         else:
-           background_clip = ImageClip(np.zeros((720,1280,3),dtype=np.uint8)).set_duration(total_duration) # Crea un fondo negro en caso de que no se suban videos
+            background_clip = ImageClip(np.zeros((720,1280,3),dtype=np.uint8)).set_duration(total_duration) # Crea un fondo negro en caso de que no se suban videos
     
 
         # Concatenar clips de texto/audio y superponer sobre el fondo
