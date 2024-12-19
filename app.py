@@ -176,8 +176,8 @@ def create_simple_video(texto, nombre_salida, voz, logo_url, background_video_fi
 
             audio_clip = AudioFileClip(temp_filename)
             clips_audio.append(audio_clip)
-            duracion = int(audio_clip.duration) # Convertir a entero
-            
+            duracion = int(audio_clip.duration)  # Convertir a entero
+
             text_img = create_text_image(segmento)
             txt_clip = (ImageClip(text_img)
                         .set_start(tiempo_acumulado)
@@ -189,7 +189,15 @@ def create_simple_video(texto, nombre_salida, voz, logo_url, background_video_fi
             
             # Selecciona un clip de fondo (cíclicamente)
             background_index = i % num_background_videos
-            background_clip = background_clips[background_index].subclip(0,duracion)
+            background_clip = background_clips[background_index]
+            
+            # Ajustar la duración del clip de fondo
+            if background_clip.duration < duracion:
+                num_loops = int(duracion // background_clip.duration) + 1
+                background_clips_looped = [background_clip] * num_loops
+                background_clip = concatenate_videoclips(background_clips_looped, method="compose")
+
+            background_clip = background_clip.subclip(0, duracion)
             background_clip = background_clip.set_start(tiempo_acumulado)
             
             clips_finales.append(background_clip) # Añado el clip de fondo a los finales para que se integre en el orden correcto
