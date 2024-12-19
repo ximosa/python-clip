@@ -203,10 +203,12 @@ def create_simple_video(texto, nombre_salida, voz, logo_url, background_video_fi
         background_clip = background_clip.resize(height=720).set_position("center")
         
         # Ajustar la duración del video de fondo
-        if background_clip.duration < total_duration:
-            background_clip = background_clip.fx(vfx.loop, duration = total_duration)
-        else:
-            background_clip = background_clip.subclip(0, total_duration)
+        
+        num_loops = int(total_duration // background_clip.duration) + 1
+        background_clips_looped = [background_clip] * num_loops
+        background_clip = concatenate_videoclips(background_clips_looped)
+        background_clip = background_clip.subclip(0, total_duration)
+        
 
         # Combinar clips con el video de fondo
         video_final = concatenate_videoclips(clips_finales, method="compose")
@@ -227,12 +229,12 @@ def create_simple_video(texto, nombre_salida, voz, logo_url, background_video_fi
             clip.close()
 
         for temp_file in archivos_temp:
-            try:
+             try:
                 if os.path.exists(temp_file):
                     os.close(os.open(temp_file, os.O_RDONLY))
                     os.remove(temp_file)
-            except:
-                pass
+             except:
+                 pass
 
         if temp_background_file:
             os.remove(temp_background_file)
