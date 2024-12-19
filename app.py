@@ -184,17 +184,17 @@ def create_simple_video(texto, nombre_salida, voz, logo_url, video_fondo):
             
             if video_fondo_clip:
                 # Ajustar el tamaño del video de fondo al tamaño del video resultante
-              resized_video_clip = video_fondo_clip.resize(text_img.shape[1]/video_fondo_clip.w)
-              video_clip_con_audio = resized_video_clip.subclip(tiempo_acumulado, min(tiempo_acumulado + duracion, video_fondo_duracion))
-              if (video_clip_con_audio.duration < duracion):
-                  video_clip_con_audio = resized_video_clip.subclip(0, min(duracion, video_fondo_duracion))
-                  video_clip_con_audio = video_clip_con_audio.set_start(tiempo_acumulado)
-              
-              video_segment =  (video_clip_con_audio.set_audio(audio_clip.set_start(tiempo_acumulado))
-                              .set_mask(txt_clip.set_opacity(0.8))
-                               )
+                resized_video_clip = video_fondo_clip.resize(text_img.shape[1]/video_fondo_clip.w)
+                video_clip_con_audio = resized_video_clip.subclip(tiempo_acumulado, min(tiempo_acumulado + duracion, video_fondo_duracion))
+                if (video_clip_con_audio.duration < duracion):
+                    video_clip_con_audio = resized_video_clip.subclip(0, min(duracion, video_fondo_duracion))
+                    video_clip_con_audio = video_clip_con_audio.set_start(tiempo_acumulado)
+                
+                video_segment =  (video_clip_con_audio.set_audio(audio_clip.set_start(tiempo_acumulado))
+                                .set_mask(txt_clip.set_opacity(0.8))
+                                )
             else:
-               video_segment = txt_clip.set_audio(audio_clip.set_start(tiempo_acumulado))
+                video_segment = txt_clip.set_audio(audio_clip.set_start(tiempo_acumulado))
             clips_finales.append(video_segment)
             
             tiempo_acumulado += duracion
@@ -291,8 +291,16 @@ def main():
     uploaded_file = st.file_uploader("Carga un archivo de texto", type="txt")
     voz_seleccionada = st.selectbox("Selecciona la voz", options=list(VOCES_DISPONIBLES.keys()))
     logo_url = "https://yt3.ggpht.com/pBI3iT87_fX91PGHS5gZtbQi53nuRBIvOsuc-Z-hXaE3GxyRQF8-vEIDYOzFz93dsKUEjoHEwQ=s176-c-k-c0x00ffffff-no-rj"
-    video_fondo = st.file_uploader("Carga un video de fondo", type=["mp4", "avi", "mov"])
     
+    if 'video_fondo_path' not in st.session_state:
+        st.session_state.video_fondo_path = None
+
+    video_fondo = st.file_uploader("Carga un video de fondo", type=["mp4", "avi", "mov"])
+    if video_fondo:
+      with tempfile.NamedTemporaryFile(suffix=os.path.splitext(video_fondo.name)[1], delete=False) as temp_file:
+        temp_file.write(video_fondo.read())
+        st.session_state.video_fondo_path = temp_file.name
+
     if uploaded_file:
         texto = uploaded_file.read().decode("utf-8")
         nombre_salida = st.text_input("Nombre del Video (sin extensión)", "video_generado")
@@ -300,13 +308,7 @@ def main():
         if st.button("Generar Video"):
             with st.spinner('Generando video...'):
                 nombre_salida_completo = f"{nombre_salida}.mp4"
-                video_fondo_path = None
-                if video_fondo:
-                    with tempfile.NamedTemporaryFile(suffix=os.path.splitext(video_fondo.name)[1], delete=False) as temp_file:
-                        temp_file.write(video_fondo.read())
-                        video_fondo_path = temp_file.name
-                
-                success, message = create_simple_video(texto, nombre_salida_completo, voz_seleccionada, logo_url, video_fondo_path)
+                success, message = create_simple_video(texto, nombre_salida_completo, voz_seleccionada, logo_url, st.session_state.video_fondo_path)
                 if success:
                   st.success(message)
                   st.video(nombre_salida_completo)
@@ -317,12 +319,16 @@ def main():
                 else:
                   st.error(f"Error al generar video: {message}")
 
-                if video_fondo_path and os.path.exists(video_fondo_path):
-                    os.remove(video_fondo_path)
-
-
         if st.session_state.get("video_path"):
             st.markdown(f'<a href="https://www.youtube.com/upload" target="_blank">Subir video a YouTube</a>', unsafe_allow_html=True)
+    
+    if st.session_state.video_fondo_path:
+      try:
+          if os.path.exists(st.session_state.video_fondo_path):
+              os.close(os.open(st.session_state.video_fondo_path, os.O_RDONLY))
+              os.remove(st.session_state.video_fondo_path)
+      except:
+          pass
 
 if __name__ == "__main__":
     # Inicializar session state
