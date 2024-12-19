@@ -37,9 +37,9 @@ VOCES_DISPONIBLES = {
     'es-ES-Standard-C': texttospeech.SsmlVoiceGender.FEMALE
 }
 
-# Función de creación de texto
+# Función de creación de texto con fondo transparente
 def create_text_image(text, size=(1280, 360), font_size=30, line_height=40):
-    img = Image.new('RGB', size, 'black')
+    img = Image.new('RGBA', size, (0, 0, 0, 128))  # Fondo negro transparente
     draw = ImageDraw.Draw(img)
     font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", font_size)
 
@@ -67,6 +67,7 @@ def create_text_image(text, size=(1280, 360), font_size=30, line_height=40):
         y += line_height
 
     return np.array(img)
+
 
 # Nueva función para crear la imagen de suscripción
 def create_subscription_image(logo_url, size=(1280, 720), font_size=60):
@@ -100,11 +101,12 @@ def create_subscription_image(logo_url, size=(1280, 720), font_size=60):
     return np.array(img)
 
 # Función de creación de video
-def create_simple_video(texto, nombre_salida, voz, logo_url, background_video_file):
+def create_simple_video(texto, nombre_salida, voz, logo_url, background_video_files):
     archivos_temp = []
     clips_audio = []
     clips_finales = []
-    temp_background_file = None  # Variable para almacenar el nombre del archivo temporal de fondo
+    temp_background_files = []
+    background_clips = []
 
     try:
         logging.info("Iniciando proceso de creación de video...")
@@ -124,14 +126,16 @@ def create_simple_video(texto, nombre_salida, voz, logo_url, background_video_fi
                 segmento_actual = frase
         segmentos_texto.append(segmento_actual.strip())
         
-        # Cargar el video de fondo
-        with tempfile.NamedTemporaryFile(suffix=os.path.splitext(background_video_file.name)[1], delete=False) as tmp_file:
+        # Cargar los videos de fondo
+        for background_video_file in background_video_files:
+          with tempfile.NamedTemporaryFile(suffix=os.path.splitext(background_video_file.name)[1], delete=False) as tmp_file:
             tmp_file.write(background_video_file.read())
-            temp_background_file = tmp_file.name
+            temp_background_files.append(tmp_file.name)
         
-        background_clip = VideoFileClip(temp_background_file)
-
-
+        #Crear los clips de video de fondo
+        for file in temp_background_files:
+           background_clips.append(VideoFileClip(file))
+        
         for i, segmento in enumerate(segmentos_texto):
             logging.info(f"Procesando segmento {i+1} de {len(segmentos_texto)}")
 
@@ -199,16 +203,22 @@ def create_simple_video(texto, nombre_salida, voz, logo_url, background_video_fi
         # Calcular la duración total del video final
         total_duration = tiempo_acumulado + duracion_subscribe
 
-        # Ajustar el tamaño del video de fondo
-        background_clip = background_clip.resize(height=720).set_position("center")
-        
-        # Ajustar la duración del video de fondo
-        
-        num_loops = int(total_duration // background_clip.duration) + 1
-        background_clips_looped = [background_clip] * num_loops
-        background_clip = concatenate_videoclips(background_clips_looped)
-        background_clip = background_clip.subclip(0, total_duration)
-        
+        # Ajustar la duración y el tamaño de los clips de video de fondo
+        final_background_clips = []
+        for clip in background_clips:
+          clip = clip.resize(height=720).set_position("center")
+          num_loops = int(total_duration // clip.duration) + 1
+          background_clips_looped = [clip] * num_loops
+          clip_looped = concatenate_videoclips(background_clips_looped)
+          clip_looped = clip_looped.subclip(0,total_duration)
+          final_background_clips.append(clip_looped)
+
+        #Concatenar todos los clips de video de fondo
+        if final_background_clips:
+            background_clip = concatenate_videoclips(final_background_clips)
+        else:
+            background_clip = ImageClip(np.zeros((720,1280,3),dtype=np.uint8)) # Crea un fondo negro en caso de que no se suban videos
+            background_clip = background_clip.set_duration(total_duration)
 
         # Combinar clips con el video de fondo
         video_final = concatenate_videoclips(clips_finales, method="compose")
@@ -236,9 +246,8 @@ def create_simple_video(texto, nombre_salida, voz, logo_url, background_video_fi
              except:
                  pass
 
-        if temp_background_file:
-            os.remove(temp_background_file)
-
+        for file in temp_background_files:
+            os.remove(file)
 
         return True, "Video generado exitosamente"
 
@@ -264,8 +273,11 @@ def create_simple_video(texto, nombre_salida, voz, logo_url, background_video_fi
             except:
                 pass
             
-        if temp_background_file:
-            os.remove(temp_background_file)
+        for file in temp_background_files:
+            try:
+                os.remove(file)
+            except:
+                pass
 
         return False, str(e)
 
@@ -275,16 +287,16 @@ def main():
     uploaded_file = st.file_uploader("Carga un archivo de texto", type="txt")
     voz_seleccionada = st.selectbox("Selecciona la voz", options=list(VOCES_DISPONIBLES.keys()))
     logo_url = "https://yt3.ggpht.com/pBI3iT87_fX91PGHS5gZtbQi53nuRBIvOsuc-Z-hXaE3GxyRQF8-vEIDYOzFz93dsKUEjoHEwQ=s176-c-k-c0x00ffffff-no-rj"
-    background_video_file = st.file_uploader("Carga un video de fondo", type=["mp4", "mov"])
+    background_video_files = st.file_uploader("Carga los videos de fondo", type=["mp4", "mov"], accept_multiple_files=True)
 
-    if uploaded_file and background_video_file:
+    if uploaded_file and background_video_files:
         texto = uploaded_file.read().decode("utf-8")
         nombre_salida = st.text_input("Nombre del Video (sin extensión)", "video_generado")
 
         if st.button("Generar Video"):
             with st.spinner('Generando video...'):
                 nombre_salida_completo = f"{nombre_salida}.mp4"
-                success, message = create_simple_video(texto, nombre_salida_completo, voz_seleccionada, logo_url, background_video_file)
+                success, message = create_simple_video(texto, nombre_salida_completo, voz_seleccionada, logo_url, background_video_files)
                 if success:
                     st.success(message)
                     st.video(nombre_salida_completo)
