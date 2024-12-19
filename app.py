@@ -4,7 +4,7 @@ import json
 import logging
 import time
 from google.cloud import texttospeech
-from moviepy.editor import AudioFileClip, ImageClip, concatenate_videoclips, VideoFileClip, CompositeVideoClip, vfx
+from moviepy.editor import AudioFileClip, ImageClip, concatenate_videoclips, VideoFileClip, CompositeVideoClip
 from PIL import Image, ImageDraw, ImageFont
 import numpy as np
 import tempfile
@@ -107,14 +107,13 @@ def create_simple_video(texto, nombre_salida, voz, logo_url, background_video_fi
     clips_finales = []
     temp_background_files = []
     background_clips = []
-    
     try:
         logging.info("Iniciando proceso de creación de video...")
         frases = [f.strip() + "." for f in texto.split('.') if f.strip()]
         client = texttospeech.TextToSpeechClient()
-
+        
         tiempo_acumulado = 0
-
+        
         # Agrupamos frases en segmentos
         segmentos_texto = []
         segmento_actual = ""
@@ -131,10 +130,12 @@ def create_simple_video(texto, nombre_salida, voz, logo_url, background_video_fi
             with tempfile.NamedTemporaryFile(suffix=os.path.splitext(background_video_file.name)[1], delete=False) as tmp_file:
                 tmp_file.write(background_video_file.read())
                 temp_background_files.append(tmp_file.name)
-        
+
         #Crear los clips de video de fondo
         for file in temp_background_files:
             background_clips.append(VideoFileClip(file).resize(height=720).set_position("center")) # Redimensionar aquí
+        
+        num_background_videos = len(background_clips)
 
         for i, segmento in enumerate(segmentos_texto):
             logging.info(f"Procesando segmento {i+1} de {len(segmentos_texto)}")
@@ -185,7 +186,14 @@ def create_simple_video(texto, nombre_salida, voz, logo_url, background_video_fi
             
             video_segment = txt_clip.set_audio(audio_clip.set_start(tiempo_acumulado))
             clips_finales.append(video_segment)
-
+            
+            # Selecciona un clip de fondo (cíclicamente)
+            background_index = i % num_background_videos
+            background_clip = background_clips[background_index].subclip(0,duracion)
+            background_clip = background_clip.set_start(tiempo_acumulado)
+            
+            clips_finales.append(background_clip) # Añado el clip de fondo a los finales para que se integre en el orden correcto
+            
             tiempo_acumulado += duracion
             time.sleep(0.2)
 
@@ -197,27 +205,15 @@ def create_simple_video(texto, nombre_salida, voz, logo_url, background_video_fi
                         .set_start(tiempo_acumulado)
                         .set_duration(duracion_subscribe)
                         .set_position('center'))
-
+        
         clips_finales.append(subscribe_clip)
 
-        # Calcular la duración total del video final
-        total_duration = tiempo_acumulado + duracion_subscribe
-
-       
-       #Crear un clip de video de fondo que se repita hasta la duracion total
-        if background_clips:
-            background_clip = concatenate_videoclips(background_clips, method="compose")
-            num_loops = int(total_duration // background_clip.duration) + 1
-            background_clips_looped = [background_clip] * num_loops
-            background_clip = concatenate_videoclips(background_clips_looped, method="compose")
-            background_clip = background_clip.subclip(0, total_duration)
-        else:
-            background_clip = ImageClip(np.zeros((720,1280,3),dtype=np.uint8)).set_duration(total_duration) # Crea un fondo negro en caso de que no se suban videos
+        # Ordenar clips por tiempo de inicio
+        clips_finales.sort(key=lambda clip: clip.start)
         
-        # Combinar clips con el video de fondo
+        # Concatenar los clips finales
         video_final = concatenate_videoclips(clips_finales, method="compose")
-        video_final = CompositeVideoClip([background_clip,video_final])
-            
+
         video_final.write_videofile(
             nombre_salida,
             fps=24,
@@ -266,7 +262,7 @@ def create_simple_video(texto, nombre_salida, voz, logo_url, background_video_fi
                     os.remove(temp_file)
             except:
                 pass
-            
+        
         for file in temp_background_files:
             try:
                 os.remove(file)
