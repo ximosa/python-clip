@@ -226,7 +226,7 @@ def create_simple_video(texto, nombre_salida, voz, logo_url, video_clips):
 
         clips_finales.append(subscribe_clip)
         
-        video_final = concatenate_videoclips(clips_finales, method="compose")
+        video_final = concatenate_videoclips(clips_finales, method="compose", )
         
         video_final.write_videofile(
             nombre_salida,
