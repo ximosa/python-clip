@@ -9,7 +9,7 @@ from PIL import Image, ImageDraw, ImageFont
 import numpy as np
 import tempfile
 import requests
-from io import BytesIO
+from io import BytesIO, BufferedRandom
 
 logging.basicConfig(level=logging.INFO)
 
@@ -36,19 +36,6 @@ VOCES_DISPONIBLES = {
     'es-ES-Standard-B': texttospeech.SsmlVoiceGender.MALE,
     'es-ES-Standard-C': texttospeech.SsmlVoiceGender.FEMALE
 }
-
-# --- Configuración de los clips de fondo ---
-VIDEO_CLIPS_DIR = "video_clips"  # Carpeta donde se guardarán los clips de video
-if not os.path.exists(VIDEO_CLIPS_DIR):
-    os.makedirs(VIDEO_CLIPS_DIR)
-
-# Lista de clips de video disponibles (agrega tus propios clips aquí)
-video_clips = [
-    os.path.join(VIDEO_CLIPS_DIR, "video1.mp4"),
-    os.path.join(VIDEO_CLIPS_DIR, "video2.mp4"),
-    os.path.join(VIDEO_CLIPS_DIR, "video3.mp4"),
-]
-# ----------------------------------------------
 
 # Función de creación de texto
 def create_text_image(text, size=(1280, 360), font_size=30, line_height=40):
@@ -113,14 +100,27 @@ def create_subscription_image(logo_url, size=(1280, 720), font_size=60):
 
     return np.array(img)
 
-# --- Función para seleccionar y cargar un clip de video aleatorio ---
-def get_random_video_clip():
-    random_clip_path = np.random.choice(video_clips)
-    return VideoFileClip(random_clip_path)
-# --------------------------------------------------------------------
+# --- Función para obtener un clip de video aleatorio de los archivos subidos ---
+def get_random_video_clip(uploaded_files):
+    if not uploaded_files:
+        return None
+    
+    # Seleccionar un archivo aleatorio de la lista
+    random_file = np.random.choice(uploaded_files)
+    
+    # Crear un archivo temporal en el sistema de archivos
+    temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=os.path.splitext(random_file.name)[1])
+    
+    # Escribir el contenido del archivo subido en el archivo temporal
+    with open(temp_file.name, "wb") as f:
+        f.write(random_file.read())
+
+    # Devolver un objeto VideoFileClip del archivo temporal
+    return VideoFileClip(temp_file.name)
+# -----------------------------------------------------------------------------
 
 # Función de creación de video
-def create_simple_video(texto, nombre_salida, voz, logo_url):
+def create_simple_video(texto, nombre_salida, voz, logo_url, uploaded_files):
     archivos_temp = []
     clips_audio = []
     clips_finales = []
@@ -188,7 +188,9 @@ def create_simple_video(texto, nombre_salida, voz, logo_url):
             duracion = audio_clip.duration
 
             # --- Superponer texto en clip de video ---
-            video_clip = get_random_video_clip()
+            video_clip = get_random_video_clip(uploaded_files)
+            if video_clip is None:
+                raise Exception("No se han subido clips de video")
             video_clip = video_clip.subclip(0, duracion)  # Ajustar duración del video a la del audio
 
             text_img = create_text_image(segmento)
@@ -196,7 +198,7 @@ def create_simple_video(texto, nombre_salida, voz, logo_url):
                         .set_start(tiempo_acumulado)
                         .set_duration(duracion)
                         .set_position('center')
-                        .set_opacity(0.7))  # Ajusta la opacidad según necesites
+                        .set_opacity(0.7))
 
             video_segment = concatenate_videoclips([video_clip.set_start(tiempo_acumulado), txt_clip.set_start(tiempo_acumulado)], method="compose")
             video_segment = video_segment.set_audio(audio_clip.set_start(tiempo_acumulado))
@@ -272,15 +274,10 @@ def create_simple_video(texto, nombre_salida, voz, logo_url):
 
 def main():
     st.title("Creador de Videos Automático")
-    
+
     # --- Carga de clips de video ---
     st.sidebar.title("Clips de Fondo")
     uploaded_files = st.sidebar.file_uploader("Sube tus clips de video", type=["mp4"], accept_multiple_files=True)
-    if uploaded_files:
-        for uploaded_file in uploaded_files:
-            with open(os.path.join(VIDEO_CLIPS_DIR, uploaded_file.name), "wb") as f:
-                f.write(uploaded_file.getbuffer())
-        st.sidebar.success("Clips de video cargados exitosamente.")
     # ---------------------------------
 
     uploaded_file = st.file_uploader("Carga un archivo de texto", type="txt")
@@ -294,7 +291,7 @@ def main():
         if st.button("Generar Video"):
             with st.spinner('Generando video...'):
                 nombre_salida_completo = f"{nombre_salida}.mp4"
-                success, message = create_simple_video(texto, nombre_salida_completo, voz_seleccionada, logo_url)
+                success, message = create_simple_video(texto, nombre_salida_completo, voz_seleccionada, logo_url, uploaded_files)
                 if success:
                     st.success(message)
                     st.video(nombre_salida_completo)
